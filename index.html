@@ -1,58 +1,55 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Mood-Based Music Recommender</title>
-  <link rel="stylesheet" href="style.css">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Poppins:wght@400;600&display=swap"
+    rel="stylesheet"
+  />
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+  />
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="container">
-    <h1>🎧 What's Your Mood Today?</h1>
-    <div class="mood-buttons">
-      <button onclick="showMusic('happy')">😊 Happy</button>
-      <button onclick="showMusic('sad')">😢 Sad</button>
-      <button onclick="showMusic('energetic')">⚡ Energetic</button>
-      <button onclick="showMusic('relaxed')">🌙 Relaxed</button>
-    </div>
-    <div id="music-display" class="music-display"></div>
-    <div class="music-player">
-      <div class="album-art-wrapper">
-    <img id="album-art" src="./images/black-disk-art.png" alt="Album Art">
+  <div class="background"></div>
+
+  <div class="container fade-in">
+    <h1 class="glow-text">🎧 What's Your Mood Today?</h1>
+
+    <button id="login-btn" class="mood-btn" onclick="login()">Login with Spotify</button>
+
+    <div id="mood-section" style="display: none;">
+      <div class="mood-buttons">
+        <button class="mood-btn" onclick="showMusic('happy')">😊 Happy</button>
+        <button class="mood-btn" onclick="showMusic('sad')">😢 Sad</button>
+        <button class="mood-btn" onclick="showMusic('energetic')">⚡ Energetic</button>
+        <button class="mood-btn" onclick="showMusic('relaxed')">🌙 Relaxed</button>
       </div>
-      <div class="song-info">
-        <p id="song-title">Song Title</p>
-      </div>
-      <div class="controls">
-        <button id="prev" title="Previous Track">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polygon points="19 20 9 12 19 4 19 20"/>
-            <line x1="5" y1="4" x2="5" y2="20"/>
-          </svg>
-        </button>
-        <button id="play" title="Play">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polygon points="5 3 19 12 5 21 5 3"/>
-          </svg>
-        </button>
-        <button id="pause" title="Pause">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="6" y="4" width="4" height="16"/>
-            <rect x="14" y="4" width="4" height="16"/>
-          </svg>
-        </button>
-        <button id="next" title="Next Track">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polygon points="5 4 15 12 5 20 5 4"/>
-            <line x1="19" y1="4" x2="19" y2="20"/>
-          </svg>
-        </button>
+
+      <div id="music-display" class="music-display"></div>
+
+      <div class="music-player glass-effect">
+        <div class="album-art-wrapper floating">
+          <img id="album-art" src="./images/black-disk-art.png" alt="Album Art" />
+        </div>
+        <div class="song-info">
+          <p id="song-title">No song selected</p>
+        </div>
+        <div class="controls">
+          <button id="prev" class="control-btn"><i class="fa-solid fa-backward"></i></button>
+          <button id="play" class="control-btn"><i class="fa-solid fa-play"></i></button>
+          <button id="pause" class="control-btn"><i class="fa-solid fa-pause"></i></button>
+          <button id="next" class="control-btn"><i class="fa-solid fa-forward"></i></button>
+        </div>
       </div>
     </div>
   </div>
-  <audio id="audio" src=""></audio>
-  <script src="server.js"></script>
+
+  <!-- Spotify Web Playback SDK -->
+  <script src="https://sdk.scdn.co/spotify-player.js"></script>
+  <audio id="audio" src="" style="display: none;"></audio> <!-- Fallback, but SDK replaces it -->
   <script src="script.js"></script>
-  
-</body>
-</html>

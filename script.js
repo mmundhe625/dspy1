@@ -1,136 +1,183 @@
-const musicSuggestions = {
-  happy: [
-    "🎶 'Happy' by Pharrell Williams",
-    "🎶 'Can't Stop the Feeling!' by Justin Timberlake",
-    "🎶 'Walking on Sunshine' by Katrina & The Waves"
-  ],
-  sad: [
-    "🎶 'Someone Like You' by Adele",
-    "🎶 'Fix You' by Coldplay",
-    "🎶 'Let Her Go' by Passenger"
-  ],
-  energetic: [
-    "🎶 'Eye of the Tiger' by Survivor",
-    "🎶 'Stronger' by Kanye West",
-    "🎶 'Don't Stop Me Now' by Queen"
-  ],
-  relaxed: [
-    "🎶 'Weightless' by Marconi Union",
-    "🎶 'Sunset Lover' by Petit Biscuit",
-    "🎶 'Breathe Me' by Sia"
-  ]
+// 🔊 Mood mapping for Spotify search queries (genres/keywords)
+const moodQueries = {
+  happy: "genre:pop mood:happy",
+  sad: "genre:acoustic mood:sad",
+  energetic: "genre:dance mood:energetic",
+  relaxed: "genre:chill mood:relaxed"
 };
 
-const moodColors = {
-  happy: "linear-gradient(135deg, #4a2c2a, #1c2526)",
-  sad: "linear-gradient(135deg, #2c2e44, #1a1b26)",
-  energetic: "linear-gradient(135deg, #3d1c1c, #2e1a1a)",
-  relaxed: "linear-gradient(135deg, #2a3b4c, #1c2526)"
-};
-
-const moodAlbumArt = {
-  // Use the path to your saved image
-  happy: "./images/black-disk-art.png",
-  sad: "./images/black-disk-art.png",
-  energetic: "./images/black-disk-art.png",
-  relaxed: "./images/black-disk-art.png",
-};
-
-let currentMood = null;
+// Global variables
+let tracks = [];
 let currentTrackIndex = 0;
+let player = null;
+let accessToken = null;
+let deviceId = null;
 
+const albumArt = document.getElementById("album-art");
+const songTitle = document.getElementById("song-title");
+const playBtn = document.getElementById("play");
+const pauseBtn = document.getElementById("pause");
+const nextBtn = document.getElementById("next");
+const prevBtn = document.getElementById("prev");
+const loginBtn = document.getElementById("login-btn");
+const moodSection = document.getElementById("mood-section");
+
+// FIX: Extract token from URL query parameters (Authorization Code Flow)
+window.addEventListener('load', () => {
+  const params = new URLSearchParams(window.location.search);
+  accessToken = params.get('access_token'); // Get token from ?access_token=...
+
+  if (accessToken) {
+    loginBtn.style.display = 'none';
+    moodSection.style.display = 'block';
+
+    // Load the Spotify Web Playback SDK script dynamically
+    if (!document.querySelector('script[src*="sdk.js"]')) {
+        const script = document.createElement('script');
+        script.src = 'https://sdk.scdn.co/spotify-player.js'; // CORRECT SDK URL
+        document.body.appendChild(script);
+    }
+    
+    // This waits for the SDK to load and call the global onSpotifyWebPlaybackSDKReady function
+    window.onSpotifyWebPlaybackSDKReady = initSpotifyPlayer;
+
+    // Clean URL: Remove the tokens from the URL
+    window.history.replaceState({}, document.title, window.location.pathname);
+
+  } else if (params.get('error')) {
+      // Show Spotify authorization errors if they occur
+      alert("Spotify Authorization Failed: " + params.get('error'));
+  }
+});
+
+// Login function
+function login() {
+  window.location.href = '/login';
+}
+
+// Initialize Spotify Player
+function initSpotifyPlayer() {
+  const token = accessToken;
+  player = new Spotify.Player({
+    name: 'Mood Recommender',
+    getOAuthToken: cb => { cb(token); },
+    volume: 0.5
+  });
+
+  // Ready event
+  player.addListener('ready', ({ device_id }) => {
+    console.log('Ready with Device ID', device_id);
+    deviceId = device_id;
+  });
+
+  player.connect();
+}
+
+// 🎶 Fetch tracks from Spotify API
 async function showMusic(mood) {
-  currentMood = mood;
-  currentTrackIndex = 0;
-
-  // Fetch songs from backend based on mood folder
-  const response = await fetch(`http://localhost:5000/api/music/${mood}`);
-  const tracks = await response.json();
-
-  const display = document.getElementById("music-display");
-
-  if (!tracks.length) {
-    display.innerHTML = `<h2>No songs found for ${mood} mood 😢</h2>`;
+  if (!accessToken || !deviceId) {
+    alert('Please login first!');
     return;
   }
 
-  // Update song list in your existing UI
-  display.innerHTML = `
-    <h2>${mood.toUpperCase()} Mood Songs</h2>
-    <ul>${tracks.map(t => `<li>${t.title}</li>`).join('')}</ul>
-  `;
+  const query = moodQueries[mood] || "pop";
+  const limit = 20;
 
-  // Keep your background, album art, etc.
-  document.body.style.background = moodColors[mood];
-  document.getElementById("album-art").src = moodAlbumArt[mood];
-  document.getElementById("song-title").textContent = tracks[currentTrackIndex].title;
+  try {
+    // FIX: Correct Spotify API search endpoint
+    const response = await fetch(
+      `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track&limit=${limit}`,
+      {
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+      }
+    );
+    const data = await response.json();
 
-  // Play the first song automatically
-  const audio = document.getElementById("audio");
-  audio.src = `http://localhost:5000${tracks[currentTrackIndex].url}`;
-  audio.play();
-
-  // Store the tracks for next/prev control
-  window.currentTracks = tracks;
+    if (data.tracks && data.tracks.items.length > 0) {
+      tracks = data.tracks.items;
+      currentTrackIndex = 0;
+      loadTrack(currentTrackIndex);
+      playTrack();
+    } else {
+      songTitle.textContent = "No tracks found for this mood.";
+      albumArt.src = "./images/black-disk-art.png";
+    }
+  } catch (error) {
+    console.error("Error fetching songs:", error);
+    alert('Error fetching tracks. Token may have expired—login again.');
+  }
 }
 
-// Keep your existing next/prev buttons working
-function updateTrack(direction) {
-  if (!window.currentTracks || !currentMood) return;
+// 🎵 Load track info
+function loadTrack(index) {
+  const track = tracks[index];
+  if (!track) return;
 
-  currentTrackIndex =
-    (currentTrackIndex + direction + window.currentTracks.length) %
-    window.currentTracks.length;
-
-  const song = window.currentTracks[currentTrackIndex];
-  const audio = document.getElementById("audio");
-  const albumArt = document.getElementById("album-art");
-  const songTitle = document.getElementById("song-title");
-
-  songTitle.textContent = song.title;
-  albumArt.src = moodAlbumArt[currentMood];
-  audio.src = `http://localhost:5000${song.url}`;
-  audio.play();
+  songTitle.textContent = `${track.name} — ${track.artists[0].name}`;
+  albumArt.src = track.album.images[0]?.url || "./images/black-disk-art.png";
 }
 
+// ▶️ Play (queue and play via Spotify API)
+async function playTrack() {
+  if (!tracks.length || !deviceId) return;
 
-function updateTrack(direction) {
-  if (!currentMood) return;
-  const tracks = musicSuggestions[currentMood];
-  currentTrackIndex = (currentTrackIndex + direction + tracks.length) % tracks.length;
-  const albumArt = document.getElementById("album-art");
-  const songTitle = document.getElementById("song-title");
-  songTitle.textContent = tracks[currentTrackIndex].replace('🎶 ', '');
-  albumArt.src = moodAlbumArt[currentMood];
-  albumArt.classList.remove("spin");
-  void albumArt.offsetWidth; // Force reflow to restart animation
-  albumArt.classList.add("spin");
+  const trackUri = tracks[currentTrackIndex].uri;
+  try {
+    // FIX: Correct Spotify API playback endpoint (Start/Resume)
+    await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
+      method: 'PUT',
+      headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        uris: [trackUri],
+        position_ms: 0
+      })
+    });
+    albumArt.classList.add("spin");
+    playBtn.style.display = "none";
+    pauseBtn.style.display = "inline-block";
+  } catch (error) {
+    console.error('Play error:', error);
+  }
 }
 
-const playBtn = document.getElementById("play");
-const pauseBtn = document.getElementById("pause");
-const prevBtn = document.getElementById("prev");
-const nextBtn = document.getElementById("next");
-const audio = document.getElementById("audio");
+// ⏸️ Pause
+async function pauseTrack() {
+  if (!deviceId) return;
+  try {
+    // FIX: Correct Spotify API playback endpoint (Pause)
+    await fetch(`https://api.spotify.com/v1/me/player/pause?device_id=${deviceId}`, {
+      method: 'PUT',
+      headers: { 'Authorization': `Bearer ${accessToken}` }
+    });
+    albumArt.classList.remove("spin");
+    playBtn.style.display = "inline-block";
+    pauseBtn.style.display = "none";
+  } catch (error) {
+    console.error('Pause error:', error);
+  }
+}
 
-playBtn.addEventListener("click", () => {
-  audio.play();
-  playBtn.classList.add("active");
-  pauseBtn.classList.remove("active");
-  document.getElementById("album-art").classList.add("spin");
-});
+// ⏭️ Next
+async function nextTrack() {
+  if (tracks.length === 0) return;
+  currentTrackIndex = (currentTrackIndex + 1) % tracks.length;
+  loadTrack(currentTrackIndex);
+  await playTrack();
+}
 
-pauseBtn.addEventListener("click", () => {
-  audio.pause();
-  pauseBtn.classList.add("active");
-  playBtn.classList.remove("active");
-  document.getElementById("album-art").classList.remove("spin");
-});
+// ⏮️ Previous
+async function prevTrack() {
+  if (tracks.length === 0) return;
+  currentTrackIndex = (currentTrackIndex - 1 + tracks.length) % tracks.length;
+  loadTrack(currentTrackIndex);
+  await playTrack();
+}
 
-prevBtn.addEventListener("click", () => {
-  updateTrack(-1);
-});
+// 🎧 Event listeners
+playBtn.addEventListener("click", playTrack);
+pauseBtn.addEventListener("click", pauseTrack);
+nextBtn.addEventListener("click", nextTrack);
+prevBtn.addEventListener("click", prevTrack);
 
-nextBtn.addEventListener("click", () => {
-  updateTrack(1);
-});
+// Hide pause by default
+pauseBtn.style.display = "none";
